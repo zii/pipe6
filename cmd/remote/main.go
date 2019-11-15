@@ -8,8 +8,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
-	"pipe6/base"
-	"pipe6/proto"
+
+	"github.com/zii/pipe6/base"
+	"github.com/zii/pipe6/proto"
 )
 
 var args = struct {

@@ -7,10 +7,11 @@ import (
 	"io"
 	"log"
 	"net"
-	"pipe6/base"
-	"pipe6/proto"
-	"pipe6/socks5"
 	"time"
+
+	"github.com/zii/pipe6/base"
+	"github.com/zii/pipe6/proto"
+	"github.com/zii/pipe6/socks5"
 )
 
 var LocalCert tls.Certificate

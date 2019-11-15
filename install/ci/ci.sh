@@ -23,7 +23,7 @@ EOF
 deploy() {
     echo "build pipe6d..."
     rm -f pipe6d.tar.gz
-    CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -ldflags "-s -w" -o ./pipe6d "pipe6/cmd/remote"
+    CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -ldflags "-s -w" -o ./pipe6d "github.com/zii/pipe6/cmd/remote"
     tar cvzf pipe6d.tar.gz ./pipe6d ../remote.pem ../remote.key ../local.pem
     echo "copy.."
     scp -P ${PORT} ./pipe6d.tar.gz ${DIR1}/
@@ -33,7 +33,7 @@ deploy() {
 }
 
 if [[ $1 == 1 ]]; then
-    deploy pipe6d "pipe6/cmd/remote"
+    deploy
 elif [[ $1 == 2 ]]; then
     # $2 is linux/windows
     echo "building client for" $2
