@@ -39,24 +39,14 @@ func Init() {
 
 func dialRemote() (net.Conn, error) {
 	st := time.Now()
-	var conn net.Conn
-	if base.USETLS {
-		config := &tls.Config{
-			InsecureSkipVerify: true,
-			Certificates:       []tls.Certificate{LocalCert},
-		}
+	config := &tls.Config{
+		InsecureSkipVerify: true,
+		Certificates:       []tls.Certificate{LocalCert},
+	}
 
-		c, err := tls.Dial("tcp", args.RemoteAddr, config)
-		if err != nil {
-			return nil, err
-		}
-		conn = c
-	} else {
-		c, err := net.Dial("tcp", args.RemoteAddr)
-		if err != nil {
-			return nil, err
-		}
-		conn = c
+	conn, err := tls.Dial("tcp", args.RemoteAddr, config)
+	if err != nil {
+		return nil, err
 	}
 	log.Println("dial remote took:", time.Since(st))
 	return conn, nil

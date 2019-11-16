@@ -39,21 +39,15 @@ func main() {
 	cas.AppendCertsFromPEM(localPem)
 
 	laddr := fmt.Sprintf("0.0.0.0:%d", args.Port)
-	var ls net.Listener
-
-	if base.USETLS {
-		config := &tls.Config{
-			Certificates:             []tls.Certificate{cert},
-			MinVersion:               tls.VersionTLS13,
-			PreferServerCipherSuites: true,
-			ClientAuth:               tls.RequireAndVerifyClientCert,
-			ClientCAs:                cas,
-		}
-		ls, err = tls.Listen("tcp", laddr, config)
-
-	} else {
-		ls, err = net.Listen("tcp", laddr)
+	config := &tls.Config{
+		Certificates:             []tls.Certificate{cert},
+		MinVersion:               tls.VersionTLS13,
+		PreferServerCipherSuites: true,
+		ClientAuth:               tls.RequireAndVerifyClientCert,
+		ClientCAs:                cas,
 	}
+	ls, err := tls.Listen("tcp", laddr, config)
+
 	base.Raise(err)
 	defer ls.Close()
 	log.Println("listening on", laddr)
