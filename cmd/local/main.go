@@ -53,11 +53,12 @@ func dialRemote() (net.Conn, error) {
 }
 
 func handleConnection(src net.Conn) {
-	log.Println("new connection:", src.RemoteAddr())
+	log.Println("new src connection:", src.RemoteAddr())
 	defer func() {
 		src.Close()
 	}()
-	src.(*net.TCPConn).SetKeepAlive(true)
+	//src.(*net.TCPConn).SetKeepAlive(true)
+	src.(*net.TCPConn).SetNoDelay(true)
 	// socks5 handshake
 	result := socks5.Handshake(src)
 	if result == nil {

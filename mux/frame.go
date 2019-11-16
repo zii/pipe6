@@ -5,13 +5,14 @@ import (
 	"encoding/binary"
 	"io"
 	"log"
+	"math/rand"
 )
 
 // frame struct
-// 2 byte: frame length
 // 2 byte: session id
 // 1 byte: stage, 1 establish 2 transfer 3 close
-//
+// 2 byte: random_id, for debug
+// 2 byte: frame length
 // n byte: payload
 
 const (
@@ -28,43 +29,58 @@ type Frame struct {
 
 func EncodeFrame(sessionId uint16, stage byte, payload []byte) []byte {
 	length := len(payload)
-	if length > 65535-3 {
+	if length > 65535 {
 		log.Fatal("encode: payload exceed limit:", length)
 	}
-	frameSize := 3 + length
-	buffer := bytes.NewBuffer(make([]byte, 0, frameSize+2))
-	binary.Write(buffer, binary.BigEndian, uint16(frameSize))
+	buffer := bytes.NewBuffer(nil)
 	binary.Write(buffer, binary.BigEndian, sessionId)
 	buffer.WriteByte(stage)
+	randomId := uint16(rand.Intn(65536))
+	binary.Write(buffer, binary.BigEndian, randomId)
+	binary.Write(buffer, binary.BigEndian, uint16(length))
 	if length > 0 {
-		buffer.Write(payload)
+		n, err := buffer.Write(payload)
+		if err != nil {
+			log.Fatal("impossible2:", err)
+		}
+		if n != length {
+			log.Fatal("impossible3")
+		}
 	}
-	return buffer.Bytes()
+	b := buffer.Bytes()
+	debug("encode:", sessionId, randomId, "size=", length)
+	return b
 }
 
 func ReadFrame(r io.Reader) *Frame {
-	var size uint16
-	err := binary.Read(r, binary.BigEndian, &size)
+	var err error
+	var sessionId uint16
+	err = binary.Read(r, binary.BigEndian, &sessionId)
 	if err != nil {
 		log.Println("frame e1")
 		return nil
 	}
-	if size < 3 {
-		log.Println("frame e2:", size)
-		return nil
-	}
-	var sessionId uint16
-	err = binary.Read(r, binary.BigEndian, &sessionId)
-	if err != nil {
-		log.Println("frame e3")
-		return nil
-	}
+	log.Println("frame e2 session_id:", sessionId)
 	var stage byte
 	err = binary.Read(r, binary.BigEndian, &stage)
 	if err != nil {
 		return nil
 	}
-	n := size - 3
+	if stage < 1 || stage > 3 {
+		log.Fatal("invalid stage byte:", stage)
+	}
+	var randomId uint16
+	err = binary.Read(r, binary.BigEndian, &randomId)
+	if err != nil {
+		return nil
+	}
+	log.Println("frame e3 random_id:", sessionId, randomId)
+	var n uint16
+	err = binary.Read(r, binary.BigEndian, &n)
+	if err != nil {
+		return nil
+	}
+	log.Println("frame e4 n:", sessionId, randomId, n)
 	var payload []byte
 	if n > 0 {
 		payload = make([]byte, n)

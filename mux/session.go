@@ -18,6 +18,7 @@ type SessionManager struct {
 	master   net.Conn
 	nextId   uint16
 	mux      *sync.RWMutex
+	iomux    *sync.RWMutex
 	sessions map[uint16]*Session // nil: closed
 }
 
@@ -26,6 +27,7 @@ func NewSessionManager(master net.Conn) *SessionManager {
 		master:   master,
 		nextId:   1,
 		mux:      new(sync.RWMutex),
+		iomux:    new(sync.RWMutex),
 		sessions: make(map[uint16]*Session),
 	}
 	return sm
@@ -55,6 +57,10 @@ func (sm *SessionManager) CreateSession(sub net.Conn) *Session {
 
 // 添加session, @remote
 func (sm *SessionManager) AddSession(id uint16, sub net.Conn) *Session {
+	if sm.sessions == nil {
+		return nil
+	}
+
 	session := &Session{
 		Id:      id,
 		sub:     sub,
@@ -73,10 +79,16 @@ func (sm *SessionManager) RemoveSession(id uint16) {
 	if sm.sessions == nil {
 		return
 	}
-	sm.mux.Lock()
-	defer sm.mux.Unlock()
 
 	delete(sm.sessions, id)
+}
+
+func (sm *SessionManager) Write(data []byte) error {
+	sm.iomux.Lock()
+	defer sm.iomux.Unlock()
+
+	_, err := sm.master.Write(data)
+	return err
 }
 
 func (sm *SessionManager) Close() {
@@ -91,6 +103,7 @@ func (sm *SessionManager) Close() {
 		s.Close()
 	}
 	sm.sessions = nil
+	debug("master closed:", sm.master.RemoteAddr())
 }
 
 func (sm *SessionManager) Closed() bool {
@@ -98,6 +111,8 @@ func (sm *SessionManager) Closed() bool {
 }
 
 func (sm *SessionManager) GetSession(id uint16) *Session {
+	sm.mux.RLock()
+	defer sm.mux.RUnlock()
 	return sm.sessions[id]
 }
 
@@ -144,7 +159,6 @@ func (sm *SessionManager) RunOnRemote() {
 	master := sm.master
 	defer func() {
 		sm.Close()
-		debug("master closed:", master.RemoteAddr())
 	}()
 	for {
 		frame := ReadFrame(master)
@@ -161,11 +175,13 @@ func (sm *SessionManager) RunOnRemote() {
 			dst := dialDst(addr)
 			if dst != nil {
 				session := sm.AddSession(frame.SessionId, dst)
-				go session.HandleRemote()
+				if session != nil {
+					go session.HandleRemote()
+				}
 			} else {
 				debug("dial remote fail:", addr)
 				reply := EncodeFrame(frame.SessionId, StageClose, nil)
-				_, err := master.Write(reply)
+				err := sm.Write(reply)
 				if err != nil {
 					break
 				}
@@ -179,7 +195,7 @@ func (sm *SessionManager) RunOnRemote() {
 			if err != nil {
 				session.Close()
 				reply := EncodeFrame(session.Id, StageClose, nil)
-				_, err = master.Write(reply)
+				err := sm.Write(reply)
 				if err != nil {
 					break
 				}
@@ -191,8 +207,6 @@ func (sm *SessionManager) RunOnRemote() {
 			}
 			session.Close()
 			debug("recv close:", frame.SessionId)
-		} else {
-			log.Fatal("invalid stage:", frame.Stage)
 		}
 	}
 }
@@ -200,12 +214,11 @@ func (sm *SessionManager) RunOnRemote() {
 func (s *Session) HandleLocal(remoteAddr string) {
 	debug("ready establish:", s.Id, remoteAddr)
 	sub := s.sub
-	master := s.manager.master
 	defer func() {
 		if !s.closed {
 			s.Close()
 			frame := EncodeFrame(s.Id, StageClose, nil)
-			_, err := master.Write(frame)
+			err := s.manager.Write(frame)
 			if err != nil {
 				s.manager.Close()
 			}
@@ -213,7 +226,8 @@ func (s *Session) HandleLocal(remoteAddr string) {
 	}()
 	// send establish frame
 	data := EncodeFrame(s.Id, StageEstablish, []byte(remoteAddr))
-	_, err := master.Write(data)
+	//master.SetWriteDeadline(time.Now().Add(1 * time.Second))
+	err := s.manager.Write(data)
 	if err != nil {
 		s.manager.Close()
 		return
@@ -225,7 +239,7 @@ func (s *Session) HandleLocal(remoteAddr string) {
 		var ew error
 		if n > 0 {
 			frame := EncodeFrame(s.Id, StageTransfer, buf[:n])
-			_, ew = master.Write(frame)
+			ew = s.manager.Write(frame)
 		}
 		if er != nil {
 			break
@@ -237,13 +251,12 @@ func (s *Session) HandleLocal(remoteAddr string) {
 }
 
 func (s *Session) HandleRemote() {
-	master := s.manager.master
 	dst := s.sub
 	defer func() {
 		if !s.closed {
 			s.Close()
 			frame := EncodeFrame(s.Id, StageClose, nil)
-			_, ew := master.Write(frame)
+			ew := s.manager.Write(frame)
 			if ew != nil {
 				s.manager.Close()
 			}
@@ -255,7 +268,7 @@ func (s *Session) HandleRemote() {
 		var ew error
 		if n > 0 {
 			frame := EncodeFrame(s.Id, StageTransfer, buf[:n])
-			_, ew = master.Write(frame)
+			ew = s.manager.Write(frame)
 		}
 		if ew != nil {
 			s.manager.Close()

@@ -26,8 +26,8 @@ func NewWorkerPool(connector func() (net.Conn, error)) *WorkerPool {
 }
 
 func (p *WorkerPool) pickWorker() *SessionManager {
-	p.mux.RLock()
-	defer p.mux.RUnlock()
+	//p.mux.RLock()
+	//defer p.mux.RUnlock()
 
 	for id, worker := range p.workers {
 		if worker.Closed() {
@@ -42,8 +42,8 @@ func (p *WorkerPool) pickWorker() *SessionManager {
 }
 
 func (p *WorkerPool) createWorker() *SessionManager {
-	p.mux.Lock()
-	defer p.mux.Unlock()
+	//p.mux.Lock()
+	//defer p.mux.Unlock()
 
 	remote, err := p.connector()
 	if err != nil {
