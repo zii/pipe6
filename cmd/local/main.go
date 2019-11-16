@@ -4,6 +4,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"io"
 	"log"
 	"net"
 	"time"
@@ -74,14 +75,24 @@ func handleConnection(src net.Conn) {
 		return
 	}
 	// alloc worker and create a new session to pipe between remote and src
-	sm := workerPool.GetWorker()
-	if sm == nil {
-		log.Println("connect to remote fail")
+	session := workerPool.GetWorker()
+	if session == nil {
 		return
 	}
 	log.Println("workers:", workerPool.Size())
-	session := sm.CreateSession(src)
-	session.HandleLocal(result.Address())
+	stream, err := session.Open()
+	if err != nil {
+		return
+	}
+	defer stream.Close()
+	// send hello
+	hello := mux.EncodeHello(1, result.Address())
+	_, err = stream.Write(hello)
+	if err != nil {
+		return
+	}
+	go io.Copy(src, stream)
+	io.Copy(stream, src)
 }
 
 func main() {

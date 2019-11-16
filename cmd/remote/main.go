@@ -5,11 +5,14 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
 
 	"github.com/zii/pipe6/mux"
+
+	"github.com/hashicorp/yamux"
 
 	"github.com/zii/pipe6/base"
 )
@@ -54,19 +57,60 @@ func main() {
 	base.Raise(err)
 	defer ls.Close()
 	log.Println("listening on", laddr)
-	func() {
-		for {
-			conn, err := ls.Accept()
-			if err != nil {
-				continue
-			}
-			go handleConnection(conn)
+	for {
+		conn, err := ls.Accept()
+		if err != nil {
+			continue
 		}
-	}()
+		go handleConnection(conn)
+	}
 }
 
 func handleConnection(master net.Conn) {
 	log.Println("new connection:", master.RemoteAddr())
-	sm := mux.NewSessionManager(master)
-	sm.RunOnRemote()
+	session, err := yamux.Server(master, nil)
+	base.Raise(err)
+	defer func() {
+		session.Close()
+		log.Println("session closed.", master.RemoteAddr())
+	}()
+	for {
+		stream, err := session.Accept()
+		if err != nil {
+			break
+		}
+		go handleStream(stream)
+	}
+}
+
+// connect to dst addr
+func dialDst(addr string) net.Conn {
+	dstAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		log.Println("resolve dst err:", err)
+		return nil
+	}
+	dst, err := net.DialTCP("tcp", nil, dstAddr)
+	if err != nil {
+		log.Println("dial dst err:", err)
+		return nil
+	}
+	return dst
+}
+
+func handleStream(stream net.Conn) {
+	defer func() {
+		stream.Close()
+		log.Println("stream closed.", stream.LocalAddr())
+	}()
+	hello := mux.DecodeHello(stream)
+	if hello == nil {
+		return
+	}
+	dst := dialDst(hello.Addr)
+	if dst == nil {
+		return
+	}
+	go io.Copy(stream, dst)
+	io.Copy(dst, stream)
 }
