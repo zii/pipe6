@@ -38,8 +38,8 @@ func (sm *SessionManager) Available() bool {
 	sm.mux.RLock()
 	defer sm.mux.RUnlock()
 
-	return true
-	//return len(sm.sessions) <= 8
+	//return true
+	return len(sm.sessions) <= 1
 }
 
 // 生产新session, @local
