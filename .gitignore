@@ -1,5 +1,1 @@
 .idea
-install/**/local
-install/**/remote
-install/**/pipe6d
-*.tar.gz
