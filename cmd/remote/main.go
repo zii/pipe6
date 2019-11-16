@@ -9,8 +9,9 @@ import (
 	"log"
 	"net"
 
+	"github.com/zii/pipe6/mux"
+
 	"github.com/zii/pipe6/base"
-	"github.com/zii/pipe6/proto"
 )
 
 var args = struct {
@@ -56,63 +57,8 @@ func main() {
 	}()
 }
 
-func handleConnection(conn net.Conn) {
-	log.Println("new connection:", conn.RemoteAddr())
-	defer func() {
-		conn.Close()
-		log.Println("pipe closed:", conn.RemoteAddr())
-	}()
-	// read hello from local
-	hello := &proto.Hello{}
-	ok := hello.Decode(conn)
-	if !ok {
-		return
-	}
-	log.Println("hello success:", hello.NetworkString(), hello.Addr)
-	// connection to dst addr
-	dstAddr, err := net.ResolveTCPAddr("tcp", hello.Addr)
-	if err != nil {
-		log.Println("resolve dst err:", err)
-		return
-	}
-	dst, err := net.DialTCP("tcp", nil, dstAddr)
-	if err != nil {
-		log.Println("dial dst err:", err)
-		return
-	}
-	defer dst.Close()
-	// upstream
-	go func() {
-		var buf = make([]byte, 8192)
-		for {
-			n, err := dst.Read(buf)
-			if n > 0 {
-				_, errw := conn.Write(buf[:n])
-				if errw != nil {
-					err = errw
-				}
-			}
-			if err != nil {
-				break
-			}
-		}
-		dst.Close()
-		conn.Close()
-	}()
-	// downstream
-	var buf = make([]byte, 8192)
-	for {
-		n, err := conn.Read(buf)
-		// read may return EOF with n > 0
-		// should always process n > 0 bytes before handling error
-		if n > 0 {
-			_, errw := dst.Write(buf[:n])
-			if errw != nil {
-				err = errw
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
+func handleConnection(master net.Conn) {
+	log.Println("new connection:", master.RemoteAddr())
+	sm := mux.NewSessionManager(master)
+	sm.RunOnRemote()
 }

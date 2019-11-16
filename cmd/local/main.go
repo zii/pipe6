@@ -4,13 +4,13 @@ package main
 import (
 	"crypto/tls"
 	"flag"
-	"io"
 	"log"
 	"net"
 	"time"
 
+	"github.com/zii/pipe6/mux"
+
 	"github.com/zii/pipe6/base"
-	"github.com/zii/pipe6/proto"
 	"github.com/zii/pipe6/socks5"
 )
 
@@ -19,6 +19,8 @@ var LocalCert tls.Certificate
 var args = struct {
 	RemoteAddr string
 }{}
+
+var workerPool *mux.WorkerPool
 
 func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
@@ -31,6 +33,7 @@ func Init() {
 	cert, err := tls.LoadX509KeyPair("local.pem", "local.key")
 	base.Raise(err)
 	LocalCert = cert
+	workerPool = mux.NewWorkerPool(dialRemote)
 }
 
 func dialRemote() (net.Conn, error) {
@@ -49,49 +52,26 @@ func dialRemote() (net.Conn, error) {
 	return conn, nil
 }
 
-func handleConnection(local net.Conn) {
-	log.Println("new connection:", local.RemoteAddr())
+func handleConnection(src net.Conn) {
+	log.Println("new connection:", src.RemoteAddr())
 	defer func() {
-		local.Close()
-		log.Println("pipe closed:", local.RemoteAddr())
+		src.Close()
 	}()
-	local.(*net.TCPConn).SetKeepAlive(true)
+	src.(*net.TCPConn).SetKeepAlive(true)
 	// socks5 handshake
-	result := socks5.Handshake(local)
+	result := socks5.Handshake(src)
 	if result == nil {
 		return
 	}
-	remote, err := dialRemote()
-	if err != nil {
-		log.Println("dial remote err:", err)
+	// alloc worker and create a new session to pipe between remote and src
+	sm := workerPool.GetWorker()
+	if sm == nil {
+		log.Println("connect to remote fail")
 		return
 	}
-	defer remote.Close()
-	// send hello to remote
-	hello := &proto.Hello{
-		Network: 1,
-		Addr:    result.Address(),
-	}
-	b := hello.Encode()
-	_, err = remote.Write(b)
-	if err != nil {
-		return
-	}
-
-	// downstream
-	go func() {
-		var buf = make([]byte, 8192)
-		n, _ := io.CopyBuffer(local, remote, buf)
-		log.Println("total read:", n)
-		local.Close()
-		remote.Close()
-	}()
-	// upstream
-	{
-		var buf = make([]byte, 8192)
-		n, _ := io.CopyBuffer(remote, local, buf)
-		log.Println("total write:", n)
-	}
+	log.Println("workers:", workerPool.Size())
+	session := sm.CreateSession(src)
+	session.HandleLocal(result.Address())
 }
 
 func main() {
