@@ -101,6 +101,7 @@ func handleStream(stream net.Conn) {
 	if hello == nil {
 		return
 	}
+	log.Println("hello:", hello.Addr)
 	dst := dialDst(hello.Addr)
 	if dst == nil {
 		return
