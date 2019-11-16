@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 type Session struct {
@@ -34,8 +35,11 @@ func NewSessionManager(master net.Conn) *SessionManager {
 }
 
 func (sm *SessionManager) Available() bool {
+	sm.mux.RLock()
+	defer sm.mux.RUnlock()
+
 	return true
-	//return len(sm.sessions) <= 10
+	//return len(sm.sessions) <= 8
 }
 
 // 生产新session, @local
@@ -51,12 +55,15 @@ func (sm *SessionManager) CreateSession(sub net.Conn) *Session {
 		sub:     sub,
 	}
 	sm.sessions[id] = session
-	debug("sessions:", len(sm.sessions))
+	//debug("sessions:", len(sm.sessions))
 	return session
 }
 
 // 添加session, @remote
 func (sm *SessionManager) AddSession(id uint16, sub net.Conn) *Session {
+	sm.mux.Lock()
+	defer sm.mux.Unlock()
+
 	if sm.sessions == nil {
 		return nil
 	}
@@ -67,15 +74,16 @@ func (sm *SessionManager) AddSession(id uint16, sub net.Conn) *Session {
 		manager: sm,
 		closed:  false,
 	}
-	sm.mux.Lock()
-	defer sm.mux.Unlock()
 
 	sm.sessions[id] = session
-	debug("sessions:", len(sm.sessions))
+	//debug("sessions:", len(sm.sessions))
 	return session
 }
 
 func (sm *SessionManager) RemoveSession(id uint16) {
+	sm.mux.Lock()
+	defer sm.mux.Unlock()
+
 	if sm.sessions == nil {
 		return
 	}
@@ -84,23 +92,32 @@ func (sm *SessionManager) RemoveSession(id uint16) {
 }
 
 func (sm *SessionManager) Write(data []byte) error {
+	st := time.Now()
 	sm.iomux.Lock()
 	defer sm.iomux.Unlock()
 
-	_, err := sm.master.Write(data)
+	n, err := sm.master.Write(data)
+	took := time.Since(st)
+	if took > 1*time.Second {
+		debug("slow write took:", took)
+	}
+	if n != len(data) && err == nil {
+		log.Fatal("write error: n != len(data)")
+	}
 	return err
 }
 
 func (sm *SessionManager) Close() {
-	if sm.sessions == nil {
-		return
-	}
 	sm.mux.Lock()
 	defer sm.mux.Unlock()
 
+	if sm.sessions == nil {
+		return
+	}
+
 	sm.master.Close()
 	for _, s := range sm.sessions {
-		s.Close()
+		s.Destory()
 	}
 	sm.sessions = nil
 	debug("master closed:", sm.master.RemoteAddr())
@@ -279,12 +296,19 @@ func (s *Session) HandleRemote() {
 	}
 }
 
-func (s *Session) Close() {
+func (s *Session) Destory() {
 	if s.closed {
 		return
 	}
 	s.closed = true
 	s.sub.Close()
+}
+
+func (s *Session) Close() {
+	if s.closed {
+		return
+	}
+	s.Destory()
 	s.manager.RemoveSession(s.Id)
 	debug("session closed:", s.Id, s.sub.RemoteAddr())
 }

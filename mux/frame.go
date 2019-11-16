@@ -48,7 +48,7 @@ func EncodeFrame(sessionId uint16, stage byte, payload []byte) []byte {
 		}
 	}
 	b := buffer.Bytes()
-	debug("encode:", sessionId, randomId, "size=", length)
+	//debug("encode:", sessionId, randomId, "size=", length)
 	return b
 }
 
@@ -57,30 +57,26 @@ func ReadFrame(r io.Reader) *Frame {
 	var sessionId uint16
 	err = binary.Read(r, binary.BigEndian, &sessionId)
 	if err != nil {
-		log.Println("frame e1")
 		return nil
 	}
-	log.Println("frame e2 session_id:", sessionId)
+	//log.Println("frame e2 session_id:", sessionId)
 	var stage byte
 	err = binary.Read(r, binary.BigEndian, &stage)
 	if err != nil {
 		return nil
 	}
 	if stage < 1 || stage > 3 {
-		log.Fatal("invalid stage byte:", stage)
 	}
 	var randomId uint16
 	err = binary.Read(r, binary.BigEndian, &randomId)
 	if err != nil {
 		return nil
 	}
-	log.Println("frame e3 random_id:", sessionId, randomId)
 	var n uint16
 	err = binary.Read(r, binary.BigEndian, &n)
 	if err != nil {
 		return nil
 	}
-	log.Println("frame e4 n:", sessionId, randomId, n)
 	var payload []byte
 	if n > 0 {
 		payload = make([]byte, n)
