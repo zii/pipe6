@@ -37,8 +37,11 @@ func (p *WorkerPool) pickWorker() *yamux.Session {
 			delete(p.workers, id)
 			continue
 		}
-		debug("streams:", worker.NumStreams())
-		return worker
+		ns := worker.NumStreams()
+		debug("streams:", id, ns)
+		if ns < 20 {
+			return worker
+		}
 	}
 	return nil
 }
