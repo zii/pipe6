@@ -10,9 +10,8 @@ import (
 	"log"
 	"net"
 
+	"github.com/xtaci/smux"
 	"github.com/zii/pipe6/mux"
-
-	"github.com/hashicorp/yamux"
 
 	"github.com/zii/pipe6/base"
 )
@@ -62,7 +61,7 @@ func main() {
 
 func handleConnection(master net.Conn) {
 	log.Println("new connection:", master.RemoteAddr())
-	session, err := yamux.Server(master, nil)
+	session, err := smux.Server(master, nil)
 	base.Raise(err)
 	defer func() {
 		session.Close()
@@ -73,7 +72,7 @@ func handleConnection(master net.Conn) {
 		if err != nil {
 			break
 		}
-		go handleStream(stream)
+		go handleStream(stream.(net.Conn))
 	}
 }
 

@@ -5,7 +5,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/hashicorp/yamux"
+	"github.com/xtaci/smux"
 	"github.com/zii/pipe6/base"
 )
 
@@ -15,7 +15,7 @@ type WorkerPool struct {
 	connector Connector
 	mux       *sync.RWMutex
 	nextId    int
-	workers   map[int]*yamux.Session
+	workers   map[int]*smux.Session
 }
 
 func NewWorkerPool(connector func() (net.Conn, error)) *WorkerPool {
@@ -23,12 +23,12 @@ func NewWorkerPool(connector func() (net.Conn, error)) *WorkerPool {
 		connector: connector,
 		mux:       new(sync.RWMutex),
 		nextId:    1,
-		workers:   make(map[int]*yamux.Session),
+		workers:   make(map[int]*smux.Session),
 	}
 	return w
 }
 
-func (p *WorkerPool) pickWorker() *yamux.Session {
+func (p *WorkerPool) pickWorker() *smux.Session {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 
@@ -46,7 +46,7 @@ func (p *WorkerPool) pickWorker() *yamux.Session {
 	return nil
 }
 
-func (p *WorkerPool) createWorker() *yamux.Session {
+func (p *WorkerPool) createWorker() *smux.Session {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 
@@ -57,13 +57,13 @@ func (p *WorkerPool) createWorker() *yamux.Session {
 	}
 	id := p.nextId
 	p.nextId++
-	session, err := yamux.Client(remote, nil)
+	session, err := smux.Client(remote, nil)
 	base.Raise(err)
 	p.workers[id] = session
 	return session
 }
 
-func (p *WorkerPool) GetWorker() *yamux.Session {
+func (p *WorkerPool) GetWorker() *smux.Session {
 	worker := p.pickWorker()
 	if worker != nil {
 		return worker
