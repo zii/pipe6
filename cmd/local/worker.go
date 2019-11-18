@@ -1,7 +1,8 @@
 // m:n multiplex proxy model @local
-package mux
+package main
 
 import (
+	"log"
 	"net"
 	"sync"
 
@@ -38,7 +39,7 @@ func (p *WorkerPool) pickWorker() *yamux.Session {
 			continue
 		}
 		ns := worker.NumStreams()
-		debug("streams:", id, ns)
+		log.Println("streams:", id, ns)
 		if ns < 20 {
 			return worker
 		}
@@ -52,7 +53,7 @@ func (p *WorkerPool) createWorker() *yamux.Session {
 
 	remote, err := p.connector()
 	if err != nil {
-		debug("create worker err:", err)
+		log.Println("create worker err:", err)
 		return nil
 	}
 	id := p.nextId

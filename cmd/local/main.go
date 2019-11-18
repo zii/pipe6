@@ -9,9 +9,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/zii/pipe6/mux"
-
 	"github.com/zii/pipe6/base"
+	"github.com/zii/pipe6/proto"
 	"github.com/zii/pipe6/socks5"
 )
 
@@ -21,7 +20,7 @@ var args = struct {
 	RemoteAddr string
 }{}
 
-var workerPool *mux.WorkerPool
+var workerPool *WorkerPool
 
 func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
@@ -34,7 +33,7 @@ func Init() {
 	cert, err := tls.LoadX509KeyPair("local.pem", "local.key")
 	base.Raise(err)
 	LocalCert = cert
-	workerPool = mux.NewWorkerPool(dialRemote)
+	workerPool = NewWorkerPool(dialRemote)
 }
 
 func dialRemote() (net.Conn, error) {
@@ -76,7 +75,7 @@ func handleConnection(src net.Conn) {
 	}
 	defer stream.Close()
 	// send hello
-	hello := mux.EncodeHello(1, result.Address())
+	hello := proto.EncodeHello(1, result.Address())
 	_, err = stream.Write(hello)
 	if err != nil {
 		return

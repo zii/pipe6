@@ -10,11 +10,10 @@ import (
 	"log"
 	"net"
 
-	"github.com/zii/pipe6/mux"
-
 	"github.com/hashicorp/yamux"
 
 	"github.com/zii/pipe6/base"
+	"github.com/zii/pipe6/proto"
 )
 
 var args = struct {
@@ -97,7 +96,7 @@ func handleStream(stream net.Conn) {
 		stream.Close()
 		log.Println("stream closed.", stream.LocalAddr())
 	}()
-	hello := mux.DecodeHello(stream)
+	hello := proto.DecodeHello(stream)
 	if hello == nil {
 		return
 	}
