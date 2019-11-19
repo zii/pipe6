@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -33,6 +34,8 @@ type Session struct {
 
 	chAccept chan *Stream
 	chWrite  chan WriteRequest
+
+	active int32
 }
 
 func (s *Session) Close() {
@@ -88,6 +91,7 @@ func newSession(conn net.Conn, config *Config, client bool) *Session {
 	}
 	go s.recvLoop()
 	go s.sendLoop()
+	go s.keepAliveLoop()
 	return s
 }
 
@@ -166,6 +170,7 @@ func (s *Session) recvLoop() {
 			debug("decHdr:", err)
 			break
 		}
+		atomic.StoreInt32(&s.active, 1)
 		var data []byte
 		if hdr.n > 0 {
 			data = make([]byte, hdr.n)
@@ -174,6 +179,7 @@ func (s *Session) recvLoop() {
 				debug("recv#2")
 				break
 			}
+			atomic.StoreInt32(&s.active, 1)
 		}
 		sid := hdr.sid
 		cmd := hdr.cmd
@@ -272,5 +278,29 @@ func (s *Session) writeFrame(cmd byte, sid uint32, data []byte, deadline <-chan 
 		return 0, ErrSessionDead
 	case <-deadline:
 		return 0, ErrTimeout
+	}
+}
+
+func (s *Session) keepAliveLoop() {
+	tickerPing := time.NewTicker(s.config.PingInterval)
+	tickerTimeout := time.NewTicker(s.config.KeepAliveInterval)
+	defer tickerPing.Stop()
+	defer tickerTimeout.Stop()
+
+	for {
+		select {
+		case <-tickerPing.C:
+			_, err := s.writeFrame(cmdNOP, 0, nil, nil)
+			if err != nil {
+				return
+			}
+		case <-tickerTimeout.C:
+			if !atomic.CompareAndSwapInt32(&s.active, 1, 0) {
+				s.Close()
+				return
+			}
+		case <-s.die:
+			return
+		}
 	}
 }

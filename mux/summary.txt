@@ -1,0 +1,56 @@
+Session(conn)
+服务端:
+    .Accept() Stream
+    pipe(dst, stream)
+客户端:
+    .Open() Stream
+    pipe(src, stream)
+
+Session()
+    conn net.Conn
+
+    streamLock
+    streams map[uint32]Stream
+
+    dieOnce sync.Once
+    die chan struct{}
+
+    config
+
+    chAccept chan Stream
+    readDeadline time.Time
+    writeDeadlinee time.Time
+
+    writeQueue chan Request
+    readReady bool // keep alive
+
+    .Close()
+    .Accept() Stream
+    .Open() Stream
+
+    recvLoop() // read conn, write stream
+    sendLoop() // read stream, send conn
+    lifeLoop()
+
+Stream()
+    id
+    session Session
+
+    dieOnce
+    die chan struct() // Close(), session.Close()
+
+    bufferEvent chan struct{}
+    buffersLock
+    buffers [][]byte // read buffers, producer: session.recvLoop
+
+    .Write(b []byte) (int, error) // write to session
+    .Read(b []byte) (int, error) // read from session
+    .Close() // call by user
+
+    maxFrameSize int
+
+FrameHeader()
+    ver 1
+    cmd 1
+    length 2
+    sid 4

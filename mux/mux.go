@@ -3,6 +3,7 @@ package mux
 import (
 	"fmt"
 	"io"
+	"time"
 )
 
 var ErrInvalidVersion = fmt.Errorf("invalid protocal version")
@@ -12,16 +13,20 @@ var ErrTimeout = fmt.Errorf("timeout")
 var ErrSessionDead = fmt.Errorf("session dead")
 
 type Config struct {
-	Backlog        uint // server side: accept buffer size
-	MaxFrameSize   int
-	WriteQueueSize uint
+	Backlog           uint // server side: accept buffer size
+	MaxFrameSize      int
+	WriteQueueSize    uint
+	PingInterval      time.Duration
+	KeepAliveInterval time.Duration
 }
 
 func DefaultConfig() *Config {
 	var out = &Config{
-		Backlog:        1024,
-		MaxFrameSize:   32768,
-		WriteQueueSize: 1024 * 2,
+		Backlog:           1024,
+		MaxFrameSize:      32768,
+		WriteQueueSize:    1024,
+		PingInterval:      10 * time.Second,
+		KeepAliveInterval: 30 * time.Second,
 	}
 	return out
 }
