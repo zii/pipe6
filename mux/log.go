@@ -7,8 +7,16 @@ import (
 	"os"
 )
 
+var debugOn bool = true
+
+func CloseDebugLog() {
+	debugOn = false
+}
+
 var std = log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
 
 func debug(a ...interface{}) {
-	std.Output(2, fmt.Sprintln(a...))
+	if debugOn {
+		std.Output(2, fmt.Sprintln(a...))
+	}
 }

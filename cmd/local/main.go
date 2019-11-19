@@ -9,6 +9,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/zii/pipe6/mux"
+
 	"github.com/zii/pipe6/base"
 	"github.com/zii/pipe6/proto"
 	"github.com/zii/pipe6/socks5"
@@ -25,6 +27,7 @@ var workerPool *WorkerPool
 func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	flag.StringVar(&args.RemoteAddr, "remote", "127.0.0.1:18443", "remote server address")
+	mux.CloseDebugLog()
 }
 
 func Init() {

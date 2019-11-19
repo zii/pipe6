@@ -10,9 +10,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/hashicorp/yamux"
-
 	"github.com/zii/pipe6/base"
+	"github.com/zii/pipe6/mux"
 	"github.com/zii/pipe6/proto"
 )
 
@@ -23,6 +22,7 @@ var args = struct {
 func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	flag.IntVar(&args.Port, "p", 18443, "listent port")
+	mux.CloseDebugLog()
 }
 
 func main() {
@@ -61,17 +61,17 @@ func main() {
 
 func handleConnection(master net.Conn) {
 	log.Println("new connection:", master.RemoteAddr())
-	session, err := yamux.Server(master, nil)
-	base.Raise(err)
+	session := mux.Server(master, nil)
 	defer func() {
 		session.Close()
 		log.Println("session closed.", master.RemoteAddr())
 	}()
 	for {
-		stream, err := session.Accept()
-		if err != nil {
+		stream := session.Accept()
+		if stream == nil {
 			break
 		}
+		log.Println("Accept:", stream.ID())
 		go handleStream(stream)
 	}
 }
