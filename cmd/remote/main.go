@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 
+	kcp "github.com/xtaci/kcp-go"
 	"github.com/zii/pipe6/base"
 	"github.com/zii/pipe6/mux"
 	"github.com/zii/pipe6/proto"
@@ -45,7 +46,7 @@ func main() {
 		ClientAuth:               tls.RequireAndVerifyClientCert,
 		ClientCAs:                cas,
 	}
-	ls, err := tls.Listen("tcp", laddr, config)
+	ls, err := kcp.Listen(laddr)
 
 	base.Raise(err)
 	defer ls.Close()
@@ -55,7 +56,8 @@ func main() {
 		if err != nil {
 			continue
 		}
-		go handleConnection(conn)
+		tlsc := tls.Server(conn, config)
+		go handleConnection(tlsc)
 	}
 }
 

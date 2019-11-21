@@ -9,6 +9,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/xtaci/kcp-go"
+
 	"github.com/zii/pipe6/mux"
 
 	"github.com/zii/pipe6/base"
@@ -46,12 +48,13 @@ func dialRemote() (net.Conn, error) {
 		Certificates:       []tls.Certificate{LocalCert},
 	}
 
-	conn, err := tls.Dial("tcp", args.RemoteAddr, config)
+	conn, err := kcp.Dial(args.RemoteAddr)
 	if err != nil {
 		return nil, err
 	}
+	tlsc := tls.Client(conn, config)
 	log.Println("dial remote took:", time.Since(st))
-	return conn, nil
+	return tlsc, nil
 }
 
 func handleConnection(src net.Conn) {
